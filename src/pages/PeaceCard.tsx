@@ -10,16 +10,16 @@ interface Msg {
 }
 
 export default function PeaceCard() {
-  const [selectedRecipient, setSelectedRecipient] = useState('Jack');
+  const [selectedRecipient, setSelectedRecipient] = useState('Will');
   
   // Active Pet info
-  const [petName, setPetName] = useState('코코');
-  const [petEmoji, setPetEmoji] = useState('🐧');
+  const [petName, setPetName] = useState('루미');
+  const [petEmoji, setPetEmoji] = useState('🐶');
 
   useEffect(() => {
     const handleSync = () => {
-      setPetName(localStorage.getItem('roompeace_pet_name') || '코코');
-      setPetEmoji(localStorage.getItem('roompeace_pet_emoji') || '🐧');
+      setPetName(localStorage.getItem('roompeace_pet_name') || '루미');
+      setPetEmoji(localStorage.getItem('roompeace_pet_emoji') || '🐶');
     };
     handleSync();
     window.addEventListener('storage', handleSync);
@@ -27,15 +27,15 @@ export default function PeaceCard() {
   }, []);
 
   const [templates] = useState([
-    { id: 1, text: "오늘 유독 피로도가 쌓여 조용히 푹 쉬는 중입니다 😴", color: "#b45309", bg: "#fef9c3", border: "#fde047", badge: "💛 수면 배려 알림" },
-    { id: 2, text: "이번 가사 돌봄 일정을 조금 조율하고 싶습니다 🔄", color: "#1d4ed8", bg: "#dbe5ff", border: "#bfdbfe", badge: "💙 일정 조율 신호" },
-    { id: 3, text: "조용히 마음 써주시고 챙겨주셔서 고마워요 ❤️", color: "#047857", bg: "#d1fae5", border: "#a7f3d0", badge: "💚 감사 시그널" },
-    { id: 4, text: "과제나 시험 집중 기간이라 불을 끄고 조용히 공부하는 중입니다 📚", color: "#6d28d9", bg: "#f3e8ff", border: "#e9d5ff", badge: "💜 집중 모드 양해" }
+    { id: 1, text: "오늘 피로 누적으로 개꿀잠 솔드아웃 예정... 조용조용 모드 플리즈! 😴💤", color: "#b45309", bg: "#fef9c3", border: "#fde047", badge: "💛 개꿀잠 조용조용" },
+    { id: 2, text: "오늘 현생 바빠서 퀘스트 하루 미루고 싶음... 조율 원츄! 🔄", color: "#1d4ed8", bg: "#dbe5ff", border: "#bfdbfe", badge: "💙 퀘스트 일정 조율" },
+    { id: 3, text: "항상 보이지 않는 곳에서 조용히 챙겨줘서 ㄹㅇ 고마움! 오늘도 평화롭네 🫶❤️", color: "#047857", bg: "#d1fae5", border: "#a7f3d0", badge: "💚 메이트 압도적 감사" },
+    { id: 4, text: "시험기간 열공 폼 미쳤다... 밤샘 예정이니 들어올 때 살금살금 부탁함! 📚🔥", color: "#6d28d9", bg: "#f3e8ff", border: "#e9d5ff", badge: "💜 시험공부 열공모드" }
   ]);
 
   const [receivedMessages] = useState<Msg[]>([
-    { id: 1, from: "Will", text: "방 안의 공용 구역 정리해주셔서 고마워요! 덕분에 코코도 신이 난 것 같습니다 🐧❤️", time: "2시간 전", colorAccent: "#047857", bgAccent: "#d1fae5" },
-    { id: 2, from: "Jack", text: "오늘 일찍 누워 수면에 들 것 같습니다. 조용한 분위기를 배려해주셔서 감사합니다.", time: "어제", colorAccent: "#b45309", bgAccent: "#fef9c3" }
+    { id: 1, from: "Will", text: "방 청소 에이스 잭! 진짜 최고임... 덕분에 루미도 꼬리 헬리콥터 돌리고 난리남 🐶🔥", time: "2시간 전", colorAccent: "#047857", bgAccent: "#d1fae5" },
+    { id: 2, from: "Elizabeth", text: "나 오늘 개꿀잠 모드... 불 끄고 살금살금 배려해줘서 ㄹㅇ 감동받았잖아 🥺", time: "어제", colorAccent: "#b45309", bgAccent: "#fef9c3" }
   ]);
 
   const handleSendCard = (text: string, badge: string, color: string) => {
@@ -52,26 +52,26 @@ export default function PeaceCard() {
     const currentDiaries = JSON.parse(localStorage.getItem('roompeace_diaries') || '[]');
     const newDiary = {
       id: currentDiaries.length > 0 ? currentDiaries[0].id + 1 : 1,
-      text: `집사 잭(나)이 ${selectedRecipient}에게 정서 엽서[${badge}]를 발송하여 ${petName}가 기쁜 마음으로 배달하러 갔습니다.`,
+      text: `집사 잭(나)이 ${selectedRecipient}에게 [${badge}] 엽서를 띄웠어요. 루미가 신나서 우다다 배달해줬습니다 🐶💌`,
       date: new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     };
     localStorage.setItem('roompeace_diaries', JSON.stringify([newDiary, ...currentDiaries]));
 
     window.dispatchEvent(new Event('storage'));
 
-    const toastMsg = `💌 ${petEmoji} ${petName}가 [${selectedRecipient}] 집사님에게 "${badge} ${text}" (${cardColorName} 엽서)를 품에 안고 얌전히 전달하러 출발했습니다! (친밀도 +5)`;
+    const toastMsg = `💌 [${cardColorName} 엽서] ${petEmoji} ${petName}가 [${selectedRecipient}] 집사님에게 "${badge} ${text}" 엽서를 안고 슝 날아갔습니다! (방 분위기 +5)`;
     window.dispatchEvent(new CustomEvent('roompeace_toast', {
       detail: { message: toastMsg }
     }));
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in" style={{ paddingBottom: '30px' }}>
       <header style={{ marginBottom: '1.5rem' }}>
         <span className="mini-badge" style={{ marginBottom: '6px' }}>💌 {petName} 우체통</span>
         <h1 className="section-title">정서적인 엽서 배달</h1>
         <p className="section-subtitle" style={{ margin: 0 }}>
-          직접 이야기하기 조심스러운 이야기도, {petEmoji} {petName}가 엽서 형태로 메이트들에게 부드럽게 배달해 드립니다.
+          직접 이야기하기 살짝 어색한 부탁이나 응원도, {petEmoji} {petName}를 거치면 은은하게 전할 수 있어요.
         </p>
       </header>
 
@@ -85,7 +85,6 @@ export default function PeaceCard() {
           onChange={(e) => setSelectedRecipient(e.target.value)}
           style={{ width: '100%', border: '1px solid var(--card-border)', borderRadius: '14px', padding: '12px', color: 'var(--text-main)', fontSize: '0.88rem', fontWeight: 600 }}
         >
-          <option value="Jack">잭 (Jack) • 거실 구역 보살핌</option>
           <option value="Will">윌 (Will) • 주방 구역 보살핌</option>
           <option value="Elizabeth">엘리자베스 (Elizabeth) • 공용 구역 보살핌</option>
         </select>
@@ -94,7 +93,7 @@ export default function PeaceCard() {
       {/* Cozy Sticky Notes Selector */}
       <div className="toss-card" style={{ background: '#fdfcfb' }}>
         <h3 style={{ margin: '0 0 14px 0', fontSize: '0.92rem', color: 'var(--text-main)', fontWeight: 800 }}>
-          엽서 선택하기 (터치 시 {petName}가 출발합니다)
+          엽서 골라보기 (선택하면 {petName}가 우다다 출발합니다)
         </h3>
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -132,10 +131,10 @@ export default function PeaceCard() {
               onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.96)'}
               onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
-              <span style={{ fontSize: '0.65rem', background: '#ffffff', padding: '2px 8px', borderRadius: '8px', opacity: 0.9, fontWeight: 800 }}>
+              <span style={{ fontSize: '0.62rem', background: '#ffffff', padding: '2px 8px', borderRadius: '8px', opacity: 0.9, fontWeight: 800 }}>
                 {tpl.badge}
               </span>
-              <p style={{ margin: '8px 0 0 0', lineHeight: 1.45, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <p style={{ margin: '8px 0 0 0', lineHeight: 1.45, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.78rem' }}>
                 "{tpl.text}"
               </p>
               <span style={{ alignSelf: 'flex-end', fontSize: '0.78rem', fontWeight: 800 }}>{petEmoji} 배달 ➔</span>
@@ -147,7 +146,7 @@ export default function PeaceCard() {
       {/* Received letter-board */}
       <div>
         <h3 style={{ margin: '18px 0 12px 0', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
-          📬 {petName}가 우리 방 메이트에게서 받아온 엽서
+          📬 메이트들이 보내서 루미가 물어다준 엽서
         </h3>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -167,7 +166,7 @@ export default function PeaceCard() {
                 <strong style={{ color: msg.colorAccent, fontWeight: 800 }}>보낸 메이트: {msg.from}</strong>
                 <span style={{ color: 'var(--text-sub)' }}>{msg.time}</span>
               </div>
-              <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-main)', lineHeight: 1.5, fontWeight: 700, fontStyle: 'italic' }}>
+              <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--text-main)', lineHeight: 1.5, fontWeight: 700, fontStyle: 'italic' }}>
                 "{msg.text}"
               </p>
             </div>

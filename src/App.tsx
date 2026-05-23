@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
-import HouseRule from './pages/HouseRule';
 import PeaceCard from './pages/PeaceCard';
 import Crew from './pages/Crew.tsx';
 import CharacterGrowth from './pages/CharacterGrowth';
@@ -191,7 +190,7 @@ function App() {
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/pethouse" element={<PetHouse />} />
-            <Route path="/houserule" element={<HouseRule />} />
+            <Route path="/houserule" element={<Crew />} />
             <Route path="/peacecard" element={<PeaceCard />} />
             <Route path="/crew" element={<Crew />} />
             <Route path="/character" element={<CharacterGrowth />} />
