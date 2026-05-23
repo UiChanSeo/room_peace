@@ -3,26 +3,74 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF, Html } from "@react-three/drei";
 import * as THREE from "three";
 
+// GLOBAL GLTF TEXTURE PATH FIX
+// Ensures that if users upload texture files in the same directory as the GLTF (flattened),
+// but the GLTF file internally references a "textures/" subfolder, the loader intercepts 
+// and resolves it correctly to the same directory.
+THREE.DefaultLoadingManager.setURLModifier((url) => {
+  if (url.includes('/textures/')) {
+    return url.replace('/textures/', '/');
+  }
+  return url;
+});
+
 interface PetRendererProps {
-  petType: "dog" | "cat";
+  petId?: string;
+  petType?: string;
   mood?: string;
   toyPosition?: [number, number, number];
   showToy?: boolean;
   isInteracting?: boolean;
   interactionType?: 'pet' | 'feed' | 'toy' | 'none';
+  equippedItems?: Record<string, string>;
 }
 
 export default function PetRenderer({ 
+  petId = "lumi",
   petType = "dog",
   mood = "idle", 
   toyPosition = [0, -0.4, 0], 
   showToy = false,
   isInteracting = false,
-  interactionType = 'none'
+  interactionType = 'none',
+  equippedItems = {}
 }: PetRendererProps) {
-  // Dynamic path loading based on species
-  const path = petType === "dog" ? "/models/dog/scene.gltf" : "/models/cat/scene.gltf";
+  const isShiba = petId === 'shiba-lumi';
+  const isRabbit = petType === 'rabbit' || petId === 'boni';
+  const isCat = petType === 'cat' || petId === 'momo';
+  const isTurtle = petType === 'turtle' || petId === 'tori-turtle';
+
+  // Dynamic path loading based on species & breed
+  const path = isShiba ? "/models/dog/shiba/scene.gltf" : isTurtle ? "/models/turtle/scene.gltf" : isRabbit ? "/models/rabbit/scene.gltf" : isCat ? "/models/cat/scene.gltf" : "/models/dog/scene.gltf";
   const gltf = useGLTF(path);
+
+  // Fix GLTF materials and color spaces (texture binding & SRGBColorSpace)
+  useEffect(() => {
+    if (gltf && gltf.scene) {
+      let textureFound = false;
+      gltf.scene.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+
+          if (mesh.material) {
+            const mat = mesh.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
+            mat.needsUpdate = true;
+            if (mat.map) {
+              textureFound = true;
+              mat.map.colorSpace = THREE.SRGBColorSpace;
+              mat.map.needsUpdate = true;
+            }
+          }
+        }
+      });
+      
+      if (!textureFound) {
+        console.warn(`[Global Pet Renderer] Texture failed to load or map is missing on material for petId: ${petId}`);
+      }
+    }
+  }, [gltf, petId]);
 
   const ref = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
@@ -68,8 +116,16 @@ export default function PetRenderer({
     }
 
     const selectBehavior = () => {
-      const rand = Math.random();
+      let rand = Math.random();
       
+      // Emotional decor modifications
+      const hasCozyRug = equippedItems['floor'] === 'cozy-rug';
+      const hasPetCushion = equippedItems['petFurniture'] === 'pet-cushion';
+
+      // If they have cozy items, slightly bias towards resting
+      if (hasCozyRug && rand > 0.85) rand -= 0.5; // push towards goRug
+      if (hasPetCushion && rand > 0.85) rand = 0.65; // push towards goBed
+
       if (rand < 0.20) {
         // Sit quietly in place
         setAutoBehavior('idle');
@@ -105,8 +161,10 @@ export default function PetRenderer({
 
     selectBehavior();
 
-    // Cat moves slightly less frequently than dog
-    const intervalMultiplier = petType === 'cat' ? 1.4 : 1.0;
+    // Cat moves slightly less frequently than dog, Rabbit is even more shy/timid
+    // Shiba is erratic (can be fast or slow)
+    // Turtle is extremely slow and moves rarely
+    const intervalMultiplier = isTurtle ? 2.5 : isRabbit ? 1.6 : isCat ? 1.4 : isShiba ? 0.8 : 1.0;
     const intervalTime = (9000 + Math.random() * 6000) * intervalMultiplier;
     const timer = setInterval(selectBehavior, intervalTime);
 
@@ -155,8 +213,8 @@ export default function PetRenderer({
     const dist = Math.sqrt(dx * dx + dz * dz);
     const isWalking = dist > 0.08 && mood !== 'sleep';
 
-    // Lerp translation coordinates (Cat walks a bit slower and more stealthily)
-    const lerpFactor = isWalking ? (petType === 'cat' ? 0.035 : 0.05) : 0.08;
+    // Lerp translation coordinates (Cat walks a bit slower and more stealthily, rabbit moves cautiously)
+    const lerpFactor = isWalking ? (isTurtle ? 0.012 : isRabbit ? 0.04 : isCat ? 0.035 : isShiba ? 0.065 : 0.05) : 0.08;
     ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, targetX, lerpFactor);
     ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, targetZ, lerpFactor);
 
@@ -176,8 +234,11 @@ export default function PetRenderer({
         // 🚶 Walking Animation wiggles
         // Dog: energetic bouncy walk
         // Cat: slow, elegant, low-height stealth walk
-        const walkFreq = petType === 'dog' ? 8.5 : 5.5;
-        const walkAmp = petType === 'dog' ? 0.12 : 0.04;
+        // Rabbit: tiny hopping (fast frequency, slightly jumpy amplitude)
+        // Shiba: arrogant strut (slower freq, higher bounce)
+        // Turtle: extremely slow wobble
+        const walkFreq = isTurtle ? 4 : isRabbit ? 14 : isShiba ? 6.5 : isCat ? 5.5 : 8.5;
+        const walkAmp = isTurtle ? 0.02 : isRabbit ? 0.08 : isShiba ? 0.15 : isCat ? 0.04 : 0.12;
         const walkBounce = Math.abs(Math.sin(time * walkFreq)) * walkAmp;
         currentY = yBase + walkBounce;
         
@@ -185,8 +246,8 @@ export default function PetRenderer({
         shadowOpacity = 0.28 - walkBounce * 0.15;
 
         // Side-to-side body roll wiggles
-        const rollFreq = petType === 'dog' ? 17 : 11;
-        const rollAmp = petType === 'dog' ? 0.06 : 0.03;
+        const rollFreq = isTurtle ? 4 : isRabbit ? 20 : isShiba ? 12 : isCat ? 11 : 17;
+        const rollAmp = isTurtle ? 0.08 : isRabbit ? 0.04 : isShiba ? 0.08 : isCat ? 0.03 : 0.06;
         bodyRef.current.rotation.z = Math.sin(time * rollFreq) * rollAmp;
 
         // Face heading direction
@@ -199,7 +260,36 @@ export default function PetRenderer({
       } else {
         // Arrived / Stationary Postures
         if (mood === "happy") {
-          if (petType === 'dog') {
+          if (isShiba) {
+            // Shiba happy: proud sitting, chest puffed, side eye
+            const puff = Math.abs(Math.sin(time * 3)) * 0.04;
+            currentY = yBase;
+            bodyRef.current.rotation.y = Math.sin(time * 1.5) * 0.1;
+            bodyRef.current.rotation.x = -0.15; // chest out
+            bodyRef.current.scale.set(1.0, 1.0 + puff, 1.0);
+          } else if (isTurtle) {
+            // Turtle happy: head bops up and down very gently
+            const hop = Math.abs(Math.sin(time * 2)) * 0.03;
+            currentY = yBase + hop;
+            bodyRef.current.rotation.y = Math.sin(time * 0.5) * 0.05;
+          } else if (isCat) {
+            // Cat happy: elegant sitting, tail sway (represented by tilt), slow purr/breathing wiggles
+            const purr = Math.sin(time * 4) * 0.015;
+            currentY = yBase + purr;
+            bodyRef.current.rotation.y = Math.sin(time * 1.5) * 0.08;
+            bodyRef.current.rotation.z = Math.sin(time * 3) * 0.02;
+            
+            const squash = Math.sin(time * 4) * 0.02;
+            bodyRef.current.scale.set(1.0 - squash, 1.0 + squash, 1.0 - squash);
+          } else if (isRabbit) {
+            // Rabbit happy: small cute hops
+            const hop = Math.abs(Math.sin(time * 8)) * 0.12;
+            currentY = yBase + hop;
+            bodyRef.current.rotation.y = Math.sin(time * 2) * 0.1;
+            const squash = Math.sin(time * 8) * 0.03;
+            bodyRef.current.scale.set(1.0 - squash, 1.0 + squash, 1.0 - squash);
+          } else {
+            // Dog happy
             const bounce = Math.abs(Math.sin(time * 6.5)) * 0.18;
             currentY = yBase + bounce;
             shadowScale = 1.0 - bounce * 0.45;
@@ -209,19 +299,39 @@ export default function PetRenderer({
             
             const squash = Math.sin(time * 12) * 0.045;
             bodyRef.current.scale.set(1.0 - squash, 1.0 + squash, 1.0 - squash);
-          } else {
-            // Cat happy: elegant sitting, tail sway (represented by tilt), slow purr/breathing wiggles
-            const purr = Math.sin(time * 4) * 0.015;
-            currentY = yBase + purr;
-            bodyRef.current.rotation.y = Math.sin(time * 1.5) * 0.08;
-            bodyRef.current.rotation.z = Math.sin(time * 3) * 0.02;
-            
-            const squash = Math.sin(time * 4) * 0.02;
-            bodyRef.current.scale.set(1.0 - squash, 1.0 + squash, 1.0 - squash);
           }
 
         } else if (mood === "excited") {
-          if (petType === 'dog') {
+          if (isShiba) {
+            // Shiba excited: Playful spinning and sudden zoomies
+            const runBounce = Math.abs(Math.sin(time * 18)) * 0.25;
+            currentY = yBase + runBounce;
+            shadowScale = 1.0 - runBounce * 0.5;
+            shadowOpacity = 0.28 - runBounce * 0.25;
+            bodyRef.current.rotation.y = time * 10; // fast spin
+            const stretch = Math.sin(time * 28) * 0.06;
+            bodyRef.current.scale.set(1.0 - stretch, 1.0 + stretch, 1.0 - stretch);
+          } else if (isTurtle) {
+            // Turtle excited: slightly faster head bop, no zoomies
+            const hop = Math.abs(Math.sin(time * 4)) * 0.05;
+            currentY = yBase + hop;
+            bodyRef.current.rotation.y = Math.sin(time * 1.5) * 0.1;
+          } else if (isCat) {
+            // Cat excited: alert ears/posture, quick little playful pounces/jumps
+            const pounce = Math.abs(Math.sin(time * 7)) * 0.16;
+            currentY = yBase + pounce;
+            shadowScale = 1.0 - pounce * 0.4;
+            shadowOpacity = 0.28 - pounce * 0.18;
+            bodyRef.current.rotation.x = -pounce * 0.2; // tilt forward
+            bodyRef.current.rotation.y = Math.sin(time * 4) * 0.12;
+          } else if (isRabbit) {
+            // Rabbit excited: fast zoomies / quick hops in place
+            const zoomie = Math.abs(Math.sin(time * 18)) * 0.15;
+            currentY = yBase + zoomie;
+            bodyRef.current.rotation.y = Math.sin(time * 6) * 0.2;
+            bodyRef.current.rotation.x = -0.1;
+          } else {
+            // Dog excited
             const runBounce = Math.abs(Math.sin(time * 14)) * 0.22;
             currentY = yBase + runBounce;
             shadowScale = 1.0 - runBounce * 0.5;
@@ -231,14 +341,6 @@ export default function PetRenderer({
 
             const stretch = Math.sin(time * 24) * 0.05;
             bodyRef.current.scale.set(1.0 - stretch, 1.0 + stretch, 1.0 - stretch);
-          } else {
-            // Cat excited: alert ears/posture, quick little playful pounces/jumps
-            const pounce = Math.abs(Math.sin(time * 7)) * 0.16;
-            currentY = yBase + pounce;
-            shadowScale = 1.0 - pounce * 0.4;
-            shadowOpacity = 0.28 - pounce * 0.18;
-            bodyRef.current.rotation.x = -pounce * 0.2; // tilt forward
-            bodyRef.current.rotation.y = Math.sin(time * 4) * 0.12;
           }
 
         } else if (mood === "sleep" || autoBehavior === 'goBed') {
@@ -247,13 +349,25 @@ export default function PetRenderer({
           shadowScale = 1.15;
           shadowOpacity = 0.32;
 
-          if (petType === 'cat') {
+          if (isCat) {
             // Cat: loaf sitting posture
             bodyRef.current.rotation.y = -0.6;
             const breath = Math.sin(time * 1.2) * 0.015;
             bodyRef.current.scale.set(1.0 + breath, 1.0 - breath, 1.0 + breath);
+          } else if (isTurtle) {
+            // Turtle sleeping: tucked slightly
+            bodyRef.current.rotation.y = -0.4;
+            bodyRef.current.rotation.x = 0.1; // head down
+            const breath = Math.sin(time * 1.0) * 0.01;
+            bodyRef.current.scale.set(1.0 - breath, 1.0 + breath, 1.0 - breath);
+          } else if (isRabbit) {
+            // Rabbit: curled up tight
+            bodyRef.current.rotation.y = -0.3;
+            bodyRef.current.rotation.x = 0.1;
+            const breath = Math.sin(time * 1.8) * 0.012;
+            bodyRef.current.scale.set(1.0 + breath, 1.0 - breath, 1.0 + breath);
           } else {
-            // Dog: laying flat
+            // Dog & Shiba: laying flat
             bodyRef.current.rotation.x = Math.PI / 2.3; // Lay flat
             bodyRef.current.rotation.y = -0.5;
             const breath = Math.sin(time * 1.5) * 0.02;
@@ -267,14 +381,21 @@ export default function PetRenderer({
           bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0, 0.1);
 
         } else if (mood === "stressed") {
-          // Shiver corner
-          const shiver = Math.sin(time * 48) * 0.01;
-          currentY = yBase + shiver;
-          shadowScale = 0.75;
-          shadowOpacity = 0.18;
+          if (isTurtle) {
+            // Turtle stressed: hide in shell
+            bodyRef.current.scale.set(0.9, 0.85, 0.9);
+            bodyRef.current.rotation.x = 0.15;
+            currentY = yBase - 0.03;
+          } else {
+            // Shiver corner
+            const shiver = Math.sin(time * 48) * 0.01;
+            currentY = yBase + shiver;
+            shadowScale = 0.75;
+            shadowOpacity = 0.18;
 
-          bodyRef.current.rotation.y = 2.25; // face corner
-          bodyRef.current.scale.setScalar(0.75); // shrink
+            bodyRef.current.rotation.y = 2.25; // face corner
+            bodyRef.current.scale.setScalar(0.75); // shrink
+          }
 
         } else {
           // Autonomous behavioral postures when stationary
@@ -292,29 +413,78 @@ export default function PetRenderer({
             bodyRef.current.rotation.x = Math.max(0, snackAnim);
           } else {
             // Idle breathing wiggles & slow head gaze turns
-            const breathFreq = petType === 'dog' ? 2 : 1.4;
+            const breathFreq = isShiba ? 1.8 : isTurtle ? 1.0 : isCat ? 1.4 : isRabbit ? 2.5 : 2;
             const breath = Math.sin(time * breathFreq) * 0.01;
             currentY = yBase + breath;
             shadowScale = 1.0 + breath * 0.4;
             shadowOpacity = 0.28 + breath * 0.1;
 
-            if (petType === 'cat') {
-              // Cat elegant actions: slow blinking, ignoring user, head tilt sways
-              const catActionTimer = (time % 12);
-              if (catActionTimer < 3.5) {
-                // Ignore user (turn head away)
+            if (isShiba) {
+              // Shiba erratic actions: occasional back turn (ignoring), silent side-eye stare
+              const shibaActionTimer = (time % 18);
+              if (shibaActionTimer < 5) {
+                // Ignore user (turn back)
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 2.5, 0.05);
+              } else if (shibaActionTimer < 10) {
+                // Side-eye staring
                 bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, -0.6, 0.05);
-              } else if (catActionTimer < 7) {
-                // Grooming tilt
-                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0.2, 0.05);
-                bodyRef.current.rotation.z = Math.sin(time * 3) * 0.05;
+                bodyRef.current.rotation.x = THREE.MathUtils.lerp(bodyRef.current.rotation.x, -0.05, 0.05);
               } else {
-                // Slow blinking/look around
+                // Proud sit
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0.2, 0.05);
+                bodyRef.current.rotation.x = THREE.MathUtils.lerp(bodyRef.current.rotation.x, -0.15, 0.05);
+              }
+            } else if (isTurtle) {
+              // Turtle idle: very slow breathing, occasional slow blink (simulated by scale/rotation)
+              const turtleActionTimer = (time % 12);
+              if (turtleActionTimer < 4) {
+                // look around slowly
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0.2, 0.02);
+              } else {
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0, 0.02);
+              }
+            } else if (isCat) {
+              // Cat elegant actions: slow blinking, ignoring user, head tilt sways, tail flicking
+              const catActionTimer = (time % 15);
+              // Add a periodic tail flick wiggle (swaying body back and forth gently on Z/Y)
+              const tailFlick = Math.sin(time * 2) * 0.025;
+              bodyRef.current.rotation.z = tailFlick;
+              
+              if (catActionTimer < 4) {
+                // Ignore user (turn head away, classic cat attitude)
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, -0.7, 0.05);
+              } else if (catActionTimer < 8) {
+                // Grooming tilt (rotate body side to side like grooming paw)
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0.35, 0.05);
+                bodyRef.current.rotation.x = THREE.MathUtils.lerp(bodyRef.current.rotation.x, 0.15, 0.05);
+                bodyRef.current.rotation.z += Math.sin(time * 4) * 0.06;
+              } else if (catActionTimer < 11) {
+                // Curl up / sit in sunlight look
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0.1, 0.05);
+                bodyRef.current.rotation.x = THREE.MathUtils.lerp(bodyRef.current.rotation.x, 0.08, 0.05);
+              } else {
+                // Slow blinking look around (micro head turns)
                 bodyRef.current.rotation.y = THREE.MathUtils.lerp(
                   bodyRef.current.rotation.y, 
-                  Math.sin(time * 0.2) * 0.35, 
+                  Math.sin(time * 0.3) * 0.25, 
                   0.05
                 );
+              }
+            } else if (isRabbit) {
+              // Rabbit timid actions: ear twitching, sitting quietly, cautious movements
+              const rabbitActionTimer = (time % 10);
+              
+              if (rabbitActionTimer < 3) {
+                // Ear twitching (represented by quick slight head shakes)
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, Math.sin(time * 15) * 0.04, 0.2);
+              } else if (rabbitActionTimer < 7) {
+                // Cautious sniffing / leaning forward
+                bodyRef.current.rotation.x = THREE.MathUtils.lerp(bodyRef.current.rotation.x, 0.12, 0.08);
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0.15, 0.05);
+              } else {
+                // Sitting quietly / gentle breathing
+                bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0, 0.05);
+                bodyRef.current.rotation.x = THREE.MathUtils.lerp(bodyRef.current.rotation.x, 0, 0.05);
               }
             } else {
               // Dog idle

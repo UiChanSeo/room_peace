@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import PetRenderer from '../components/PetRenderer';
 import CozyRoom from '../components/CozyRoom';
 import { AmbientParticles, DynamicLights } from '../components/PetSceneShared';
+import { decorItemsList, DecorItem, DecorCategory } from '../data/decorData';
+import DecorRenderer from '../components/DecorRenderer';
 
 interface Diary {
   id: number;
@@ -77,12 +79,11 @@ export default function PetHouse() {
   const controlsRef = useRef<any>(null);
 
   // Sync states with localStorage
+  const [petId, setPetId] = useState('lumi');
   const [petName, setPetName] = useState('루미');
   const [petType, setPetType] = useState('dog');
   const [petEmoji, setPetEmoji] = useState('🐶');
   const [trust, setTrust] = useState(100);
-  const [streak, setStreak] = useState(14);
-  const [teamBerry, setTeamBerry] = useState(8420);
   const [houseName, setHouseName] = useState('달빛 펭귄가족 🏠');
 
   // Customization choices
@@ -94,10 +95,21 @@ export default function PetHouse() {
   const [isInteracting, setIsInteracting] = useState(false);
   const [interactionType, setInteractionType] = useState<'pet' | 'feed' | 'toy' | 'none'>('none');
   const [interactionText, setInteractionText] = useState('');
+
+  // --- Decor System States ---
+  const [showDecorShop, setShowDecorShop] = useState(false);
+  const [decorCategory, setDecorCategory] = useState<DecorCategory | 'all'>('all');
+  const [ownedDecorItems, setOwnedDecorItems] = useState<string[]>([]);
+  const [equippedDecorItems, setEquippedDecorItems] = useState<Record<string, string>>({});
+  const [previewDecorItems, setPreviewDecorItems] = useState<Record<string, string>>({});
   
   // Toy Ball simulation states
   const [showToy, setShowToy] = useState(false);
   const [toyPosition, setToyPosition] = useState<[number, number, number]>([0, -0.4, 0]);
+
+  // Derived base stats
+  const streak = parseInt(localStorage.getItem('roompeace_streak') || '14');
+  const teamBerry = parseInt(localStorage.getItem('roompeace_team_berry') || '8420');
 
   // Drawer Tabs: 'play' | 'decorate'
   const [activeTab, setActiveTab] = useState<'play' | 'decorate'>('play');
@@ -113,14 +125,15 @@ export default function PetHouse() {
   // Load and sync localStorage
   useEffect(() => {
     const handleSync = () => {
+      setPetId(localStorage.getItem('roompeace_pet_id') || 'lumi');
       setPetName(localStorage.getItem('roompeace_pet_name') || '루미');
       setPetType(localStorage.getItem('roompeace_pet_type') || 'dog');
       setPetEmoji(localStorage.getItem('roompeace_pet_emoji') || '🐶');
       setTrust(parseInt(localStorage.getItem('roompeace_trust') || '100'));
-      setStreak(parseInt(localStorage.getItem('roompeace_streak') || '14'));
-      setTeamBerry(parseInt(localStorage.getItem('roompeace_team_berry') || '8420'));
       setHouseName(localStorage.getItem('roompeace_house_name') || '달빛 펭귄가족 🏠');
       setDiaries(JSON.parse(localStorage.getItem('roompeace_diaries') || '[]'));
+      setOwnedDecorItems(JSON.parse(localStorage.getItem('roompeace_owned_decor') || '[]'));
+      setEquippedDecorItems(JSON.parse(localStorage.getItem('roompeace_equipped_decor') || '{}'));
 
       setWallpaper(localStorage.getItem('roompeace_equipped_wallpaper') || 'cream');
       setRugColor(localStorage.getItem('roompeace_equipped_rug') || 'yellow');
@@ -182,8 +195,23 @@ export default function PetHouse() {
     localStorage.setItem('roompeace_berry', nextBerry.toString());
     window.dispatchEvent(new Event('storage'));
 
-    setInteractionText(`🍖 ${petName}에게 맛있는 뼈다귀 과자를 던져주었습니다! (보급 -10 🍓)`);
-    addMemoryDiary(`🍖 집사가 둥지 방으로 뼈다귀 간식을 던져주자 ${petName}(이)가 껑충 뛰어 공중에서 낚아챘습니다.`);
+    const isCat = petType === 'cat' || petId === 'momo';
+    const isRabbit = petType === 'rabbit' || petId === 'boni';
+    const isShiba = petId === 'shiba-lumi';
+    const isTurtle = petType === 'turtle' || petId === 'tori-turtle';
+    setInteractionText(
+      isTurtle ? `🥬 ${petName}에게 신선한 청경채를 건네주었습니다! (보급 -10 🍓)` :
+      isRabbit ? `☘️ ${petName}에게 신선한 토끼풀을 건네주었습니다! (보급 -10 🍓)` :
+      isCat ? `🐟 ${petName}에게 맛있는 연어 츄르를 짜주었습니다! (보급 -10 🍓)` : 
+      `🍖 ${petName}에게 맛있는 뼈다귀 과자를 던져주었습니다! (보급 -10 🍓)`
+    );
+    addMemoryDiary(
+      isTurtle ? `🥬 집사가 둥지 방에서 청경채를 내밀자 ${petName}(이)가 느릿느릿 다가와 한 입씩 정성껏 베어 먹습니다.` :
+      isRabbit ? `☘️ 집사가 둥지 방에서 토끼풀을 내밀자 ${petName}(이)가 코를 씰룩이며 오물오물 귀엽게 먹습니다.` :
+      isShiba ? `🍖 집사가 둥지 방으로 뼈다귀 간식을 던져주자 ${petName}(이)가 거만한 표정으로 천천히 다가와 물고 갑니다.` :
+      isCat ? `🐟 집사가 둥지 방에서 연어 츄르 간식을 주자 ${petName}(이)가 냠냠 핥아먹으며 골골송을 부릅니다.` : 
+      `🍖 집사가 둥지 방으로 뼈다귀 간식을 던져주자 ${petName}(이)가 껑충 뛰어 공중에서 낚아챘습니다.`
+    );
 
     setTimeout(() => {
       setIsInteracting(false);
@@ -219,8 +247,18 @@ export default function PetHouse() {
       localStorage.setItem('roompeace_berry', nextBerry.toString());
       window.dispatchEvent(new Event('storage'));
 
+      const isCat = petType === 'cat' || petId === 'momo';
+      const isRabbit = petType === 'rabbit' || petId === 'boni';
+      const isShiba = petId === 'shiba-lumi';
+      const isTurtle = petType === 'turtle' || petId === 'tori-turtle';
       setInteractionText(`⚽ 앙! ${petName}(이)가 굴러가는 공을 붙잡았습니다! 친밀도 +8 (보급 -15 🍓)`);
-      addMemoryDiary(`⚽ 방 안에서 집사가 굴려준 빨간 공을 쫓아 ${petName}(이)가 신나게 우다다 달려 공을 물어왔습니다.`);
+      addMemoryDiary(
+        isTurtle ? `⚽ 방 안에서 집사가 굴려준 빨간 공을 향해 ${petName}(이)가 천천히 다가가 묵직하게 머리로 툭 밀어냅니다.` :
+        isRabbit ? `⚽ 방 안에서 집사가 굴려준 빨간 공을 향해 ${petName}(이)가 조심스레 다가가 코로 통통 건드립니다.` :
+        isShiba ? `⚽ 방 안에서 집사가 굴려준 빨간 공을 보고 ${petName}(이)가 우다다 달려가 낚아채더니 자랑스럽게 물고 빙빙 돕니다.` :
+        isCat ? `⚽ 방 안에서 집사가 굴려준 빨간 공을 향해 ${petName}(이)가 솜방망이를 휘두르며 신나게 낚아챘습니다.` :
+        `⚽ 방 안에서 집사가 굴려준 빨간 공을 쫓아 ${petName}(이)가 신나게 우다다 달려 공을 물어왔습니다.`
+      );
     }, 1800);
 
     // Stop interaction after 3.5s
@@ -239,7 +277,17 @@ export default function PetHouse() {
     setInteractionType('pet');
     setActiveMood('excited');
 
-    setInteractionText(`👋 ${petName}의 이마와 복슬복슬한 등을 쓰다듬어 주었습니다.`);
+    const isCat = petType === 'cat' || petId === 'momo';
+    const isRabbit = petType === 'rabbit' || petId === 'boni';
+    const isShiba = petId === 'shiba-lumi';
+    const isTurtle = petType === 'turtle' || petId === 'tori-turtle';
+    setInteractionText(
+      isTurtle ? `👋 ${petName}의 단단한 등껍질을 조심스럽게 쓰다듬어 주었습니다.` :
+      isRabbit ? `👋 ${petName}의 부드러운 귀와 등을 살살 쓰다듬어 주었습니다.` :
+      isShiba ? `👋 ${petName}의 볼살을 주욱 늘려 쓰다듬어 주었습니다.` :
+      isCat ? `👋 ${petName}의 턱 밑과 귀 뒤를 살살 쓰다듬어 눈을 지그시 감게 했습니다.` :
+      `👋 ${petName}의 이마와 복슬복슬한 등을 쓰다듬어 주었습니다.`
+    );
 
     setTimeout(() => {
       setIsInteracting(false);
@@ -296,47 +344,200 @@ export default function PetHouse() {
     }));
   };
 
-  // Dynamic Contextual Dialogue bubble text mapping
-  let dialogueText = `${petName}: 메이트님들과 한 공간에서 지내서 안심이 돼요 🍃`;
+  // --- Decor System Handlers ---
+  const handlePreviewDecor = (item: DecorItem) => {
+    setPreviewDecorItems(prev => ({
+      ...prev,
+      [item.category]: item.id
+    }));
+  };
+
+  const handlePurchaseOrEquipDecor = (item: DecorItem) => {
+    const isOwned = ownedDecorItems.includes(item.id);
+    const isEquipped = equippedDecorItems[item.category] === item.id;
+
+    if (isEquipped) {
+      // Unequip
+      const newEquipped = { ...equippedDecorItems };
+      delete newEquipped[item.category];
+      setEquippedDecorItems(newEquipped);
+      setPreviewDecorItems(newEquipped);
+      localStorage.setItem('roompeace_equipped_decor', JSON.stringify(newEquipped));
+      return;
+    }
+
+    if (isOwned) {
+      // Equip
+      const newEquipped = { ...equippedDecorItems, [item.category]: item.id };
+      setEquippedDecorItems(newEquipped);
+      setPreviewDecorItems(newEquipped);
+      localStorage.setItem('roompeace_equipped_decor', JSON.stringify(newEquipped));
+      return;
+    }
+
+    // Purchase / Unlock logic
+    if (item.price > 0) {
+      const currentBerry = parseInt(localStorage.getItem('roompeace_berry') || '320');
+      if (currentBerry < item.price) {
+        window.dispatchEvent(new CustomEvent('roompeace_toast', { detail: { message: `🔒 베리가 부족합니다! (${item.price} 🍓 필요)` } }));
+        return;
+      }
+      localStorage.setItem('roompeace_berry', (currentBerry - item.price).toString());
+      window.dispatchEvent(new Event('storage'));
+    } else if (item.unlockCondition) {
+      // Very basic conditional logic check (e.g., streak >= 14 if condition string mentions 14)
+      if (item.unlockCondition.includes('14일') && streak < 14) {
+        window.dispatchEvent(new CustomEvent('roompeace_toast', { detail: { message: `🔒 ${item.unlockCondition} 달성 필요!` } }));
+        return;
+      }
+      if (item.unlockCondition.includes('7일') && streak < 7) {
+        window.dispatchEvent(new CustomEvent('roompeace_toast', { detail: { message: `🔒 ${item.unlockCondition} 달성 필요!` } }));
+        return;
+      }
+      if (item.unlockCondition.includes('10일') && streak < 10) {
+        window.dispatchEvent(new CustomEvent('roompeace_toast', { detail: { message: `🔒 ${item.unlockCondition} 달성 필요!` } }));
+        return;
+      }
+      // If peace card condition, mock pass for now unless strictly tracked
+    }
+
+    const newOwned = [...ownedDecorItems, item.id];
+    setOwnedDecorItems(newOwned);
+    localStorage.setItem('roompeace_owned_decor', JSON.stringify(newOwned));
+    
+    // Auto equip upon purchase
+    const newEquipped = { ...equippedDecorItems, [item.category]: item.id };
+    setEquippedDecorItems(newEquipped);
+    setPreviewDecorItems(newEquipped);
+    localStorage.setItem('roompeace_equipped_decor', JSON.stringify(newEquipped));
+
+    window.dispatchEvent(new CustomEvent('roompeace_toast', { detail: { message: `🎉 [${item.name}] 획득 및 배치 완료!` } }));
+  };
+
+  const handleCloseDecorShop = () => {
+    setShowDecorShop(false);
+    // Revert previews back to actually equipped
+    setPreviewDecorItems({ ...equippedDecorItems });
+  };
+
+  // Dynamic Contextual Dialogue bubble text mapping in casual Gen-Z Korean
+  let dialogueText = '';
   let moodStatusText = '평온함';
   let moodEmojiIndicator = '🙂';
 
+  const isCat = petType === 'cat' || petId === 'momo';
+  const isRabbit = petType === 'rabbit' || petId === 'boni';
+  const isShiba = petId === 'shiba-lumi';
+  const isTurtle = petType === 'turtle' || petId === 'tori-turtle';
+
+  // --- Emotional Decor Influence ---
+  const hasSunsetLamp = previewDecorItems['lighting'] === 'sunset-lamp';
+  const hasPlant = previewDecorItems['plant'] === 'plant-monstera';
+
   if (activeMood === 'sleep') {
-    moodStatusText = '웅크려 숙면';
+    moodStatusText = isTurtle ? '등껍질 속에 쏙 들어가 명상 중' : isRabbit ? '조용히 눈을 감고 쉬는 중' : isShiba ? '대자로 뻗어 꿀잠 중' : '곤히 코자고 있는 중';
     moodEmojiIndicator = '😴';
-    dialogueText = `${petName}: Zzz... 둥지 속에서 곤히 자고 있어요. 발소리를 낮춰주세요 💤`;
+    dialogueText = isTurtle
+      ? `${petName}: Zzz... 평온함이... 제일 좋아... 💤`
+      : isRabbit
+      ? `${petName}: Zzz... 새근새근... (오늘 집 분위기 꽤 포근한데…) 💤`
+      : isShiba
+      ? `${petName}: Zzz... 퓨흐흥... 나 자니까 건드리지 마라... 💤`
+      : isCat 
+      ? `${petName}: Zzz... 새근새근... 건드리지 마라 냐옹 💤`
+      : `${petName}: Zzz... 쉿! ${petName}는 곤히 꿈나라 여행 중 💤 발소리 사뿐사뿐 해줘!`;
   } else if (activeMood === 'stressed') {
-    moodStatusText = '구석에 찌그러짐';
-    moodEmojiIndicator = '🥺';
-    dialogueText = `${petName}: 최근엔 메이트들끼리 서먹해서 마음이 조금 추워요... 🥺💧`;
+    moodStatusText = isTurtle ? '껍질 속으로 몸을 숨김' : isRabbit ? '구석에 숨음' : isShiba ? '어이없다는 듯 쳐다봄' : isCat ? '눈치보는 중' : '냉전 상태 삐짐';
+    moodEmojiIndicator = '😡';
+    dialogueText = isTurtle
+      ? `${petName}: 공기가 무거워... 조금 숨어 있을래... 🐢💦`
+      : isRabbit
+      ? `${petName}: (작은 소리로) 훌쩍... 집 안이 차가워요... 구석에 숨어 있을래요 🐰💦`
+      : isShiba
+      ? `${petName}: 하... 집구석 꼬라지 봐라. 내가 다 어이가 없네 🙄`
+      : isCat
+      ? `${petName}: 방 공기가 왠지 서늘한데... 다들 조용히 눈치 게임 하는 거임? 😿`
+      : `${petName}: 요즘 집 분위기 살짝 축 처진 거 같지 않음...? 다들 피곤한가봄 🥺 ${petName} 서운해...`;
   } else if (activeMood === 'lonely') {
-    moodStatusText = '쓸쓸함';
+    moodStatusText = isTurtle ? '느릿하게 주위를 둘러보는 중' : isRabbit ? '가만히 앉아 있음' : isShiba ? '지루해 죽으려 함' : isCat ? '조용히 관찰 중' : '쓸쓸하고 심심함';
     moodEmojiIndicator = '🐾';
-    dialogueText = `${petName}: 최근엔 조금 외로운 것 같아요… 메이트님들, 저 놀아주세요 🥺`;
+    dialogueText = isTurtle
+      ? `${petName}: 조금 쓸쓸하네... 누군가 곁에 와줬으면 좋겠다... 🐢`
+      : isRabbit
+      ? `${petName}: 오늘은 조용해서 좋아... 그래도 메이트들이 한 번 쓰다듬어 주면 좋겠어요 🐰`
+      : isShiba
+      ? `${petName}: 아 심심해... 집사들아, 재밌는 거 없냐? 나 좀 놀아줘봐 🐕💨`
+      : isCat
+      ? `${petName}: 심심하다냥... 메이트들 가사 퀘스트하고 내 앞에 와서 재롱이라도 떨어봐라옹 🐾`
+      : `${petName}: 오늘 우리방 온도 살짝 애매한데... 다들 바쁜가? 나랑 퀘스트 한 판 꼬우? 🐾`;
   } else if (activeMood === 'excited') {
-    moodStatusText = '우다다 우쭐!';
+    moodStatusText = isTurtle ? '기분 좋은 껍질 흔들기' : isRabbit ? '귀가 쫑긋!' : isShiba ? '갑작스런 우다다' : isCat ? '골골송 가동!' : '꼬리 헬리콥터!';
     moodEmojiIndicator = '🤩';
-    dialogueText = `${petName}: 야호! 달리고 뛰고 굴러요! 집사님들과 노는 게 세상에서 제일 재미있어! 🚀`;
+    dialogueText = isTurtle
+      ? `${petName}: 마음이 붕 뜨는 것 같아... 너무 기분 좋아... ✨`
+      : isRabbit
+      ? `${petName}: 깡총깡총! 여기 있으니까 너무 안심돼요... 집사님 최고! ☘️✨`
+      : isShiba
+      ? `${petName}: 끄와아아앙!! 기분 째진다!! 우다다다다다다다!! 🚀🐕💨`
+      : isCat
+      ? `${petName}: 냐앙! 이거 너무 맛있다옹! 꼬리가 살랑살랑 기분 최고다냥! 🐟✨`
+      : `${petName}: 우와악! 맛있는 거 주니까 꼬리 헬리콥터 가동! 🚀 집사들이랑 노는 게 세상에서 제일 신나!`;
   } else if (streak >= 14) {
-    moodStatusText = '자랑스러움';
+    moodStatusText = isTurtle ? '깊은 안정감' : isRabbit ? '안정감 100%' : isShiba ? '꽤나 만족스러움' : '스트릭 폼 미쳤다';
     moodEmojiIndicator = '🔥';
-    dialogueText = `${petName}: 우리 방의 ${streak}일 연속 평화 기록이 너무 자랑스러워요! 🔥`;
+    dialogueText = isTurtle
+      ? `${petName}: ${streak}일의 평화... 이 따뜻함이 오래오래 갔으면 좋겠어 🐢💖`
+      : isRabbit
+      ? `${petName}: 다정하게 지내는 집사님들을 보니까 마음이 몽글몽글해요... 연속 ${streak}일 너무 따뜻해 🐰💖`
+      : isShiba
+      ? `${petName}: 오, 이 집구석 생각보다 제법 잘 굴러가는데? 은근 마음에 들어 🐕🔥`
+      : isCat
+      ? `${petName}: 벌써 연속 평화 ${streak}일 달성이라니 실화임? 집사들 꽤 친하게 지내네 냐옹 🔥`
+      : `${petName}: 우리방 연속 평화 ${streak}일째 유지 중! 폼 미쳤다 🔥 이대로 쭉 가보자고!`;
   } else if (isNight) {
-    moodStatusText = '평온함';
+    moodStatusText = isTurtle ? '조용한 밤의 수호자' : isRabbit ? '귀를 접고 웅크림' : isShiba ? '어둠 속의 눈빛' : '밤 깊은 시각';
     moodEmojiIndicator = '🌙';
-    dialogueText = `${petName}: 🌙 조용한 밤이네요… 오늘 하루 모두 고생 많으셨어요!`;
+    dialogueText = isTurtle
+      ? `${petName}: 🌙 어둠 속에서도... 내가 우리 집을 지켜볼게... 편히 자... 🐢`
+      : isRabbit
+      ? `${petName}: 🌙 달빛이 들어오네요... 다들 조심조심 다니는 모습이 예뻐요 🐰`
+      : isShiba
+      ? `${petName}: 🌙 밤이다... 다들 자냐? 나만 빼고 자는 거 아니지? 👀`
+      : isCat
+      ? `${petName}: 🌙 메이트들 밤에는 조용조용 걷자냥. 야행성인 내가 다 지켜보고 있다옹 🐱`
+      : `${petName}: 🌙 밤 깊었는데 조심히 걷기 약속! 오늘도 메이트들 다들 살아남느라 수고했어 🐶`;
   } else if (currentHour >= 6 && currentHour < 12) {
-    moodStatusText = '활기참';
+    moodStatusText = isTurtle ? '느긋한 아침 인사' : isRabbit ? '코를 씰룩이는 아침' : isShiba ? '당당한 기상' : '활기찬 아침';
     moodEmojiIndicator = '☀️';
-    dialogueText = `${petName}: ☀️ 오늘도 함께여서 좋아요! 활기찬 아침 시작해 봐요!`;
+    dialogueText = isTurtle
+      ? `${petName}: ☀️ 아침이 밝았네... 오늘도 서두르지 말고 천천히 가자... 🐢`
+      : isRabbit
+      ? `${petName}: ☀️ 따스한 아침 햇살... 기분 좋은 하루가 될 것 같아요 🐰`
+      : isShiba
+      ? `${petName}: ☀️ 아침이냐? 빨리 밥 줘, 배고파. 오늘 하루도 열심히 뫼셔라 🐕`
+      : isCat
+      ? `${petName}: ☀️ 하품 한 판 완료. 집사들 오늘 하루도 부지런히 살아봐라옹.`
+      : `${petName}: ☀️ 좋은 아침! 기지개 쭉 켜고 오늘도 파이팅 해보자고!`;
   } else {
-    moodStatusText = '행복함';
+    moodStatusText = isTurtle ? '평화로운 등껍질' : isRabbit ? '평화로운 토끼' : isShiba ? '집안 꼴 관전 중' : isCat ? '훈훈한 골골송' : '오 오늘 좀 훈훈한데?';
     moodEmojiIndicator = '💖';
-    dialogueText = `${petName}: 방 안 가득 메이트들의 아늑한 온기가 가득해요! 기분 좋아! 💖`;
+    dialogueText = hasSunsetLamp
+      ? `${petName}: 무드등 켜니까 방이 노을처럼 예뻐졌어 ✨ 마음이 편안해져...`
+      : hasPlant && Math.random() > 0.5
+      ? `${petName}: 킁킁... 화분에서 좋은 자연 냄새가 나 🪴`
+      : isTurtle
+      ? `${petName}: 오늘은 집이 꽤 편안하네... 천천히 가도 괜찮아... 🐢✨`
+      : isRabbit
+      ? `${petName}: 메이트들이 사이좋게 지내는 소리가 참 듣기 좋아요... 🐰✨`
+      : isShiba
+      ? `${petName}: 오늘 집 상태 꽤 괜찮은데? 다들 조용히 잘 지내서 봐줄 만하네 🐕`
+      : isCat
+      ? `${petName}: 볕 잘 드는 데서 낮잠 자고 싶다 🐱💤 다들 사이 좋아 보여서 봐준다냥 🫶`
+      : `${petName}: 오 오늘 좀 훈훈한데? 다들 배려력 폭발 중 ✨ 기분 개째져!`;
   }
 
   // Dynamic light settings based on trust (cooperation atmosphere)
-  const isAtmosphereStrained = trust < 50;
+  const isAtmosphereStrained = trust < 40;
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 74px)', overflow: 'hidden', background: '#f8fafc' }}>
@@ -344,7 +545,9 @@ export default function PetHouse() {
       {/* 🚀 3D Room Centerpiece (66% Height) - Dynamic Cinematic Camera */}
       <div style={{
         height: '64%',
-        background: isNight ? 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%)' : 'linear-gradient(180deg, #bae6fd 0%, #f0f9ff 100%)',
+        background: isNight 
+          ? (isTurtle ? 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)' : 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%)')
+          : (isTurtle ? 'linear-gradient(180deg, #fef3c7 0%, #ffedd5 100%)' : 'linear-gradient(180deg, #bae6fd 0%, #f0f9ff 100%)'),
         position: 'relative',
         width: '100%',
         overflow: 'hidden',
@@ -380,23 +583,45 @@ export default function PetHouse() {
             </span>
           </div>
 
-          <button
-            onClick={() => setShowDiaryModal(true)}
-            style={{
-              background: 'rgba(255, 255, 255, 0.9)',
-              backdropFilter: 'blur(10px)',
-              border: 'none',
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              padding: '6px 12px',
-              borderRadius: '14px',
-              cursor: 'pointer',
-              color: 'var(--text-main)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
-            }}
-          >
-            📖 기억첩
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => {
+                setShowDecorShop(true);
+                setPreviewDecorItems({ ...equippedDecorItems });
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(10px)',
+                border: 'none',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                padding: '6px 12px',
+                borderRadius: '14px',
+                cursor: 'pointer',
+                color: 'var(--accent-purple)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
+              }}
+            >
+              ✨ 꾸미기
+            </button>
+            <button
+              onClick={() => setShowDiaryModal(true)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(10px)',
+                border: 'none',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                padding: '6px 12px',
+                borderRadius: '14px',
+                cursor: 'pointer',
+                color: 'var(--text-main)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
+              }}
+            >
+              📖 기억첩
+            </button>
+          </div>
         </div>
 
         {/* Dynamic dialogue balloon bubble */}
@@ -420,6 +645,109 @@ export default function PetHouse() {
           {dialogueText}
         </div>
 
+        {/* ==================================
+          DECORATION SHOP MODAL (OVERLAY)
+          ================================== */}
+      {showDecorShop && (
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          borderTopLeftRadius: '24px',
+          borderTopRightRadius: '24px',
+          padding: '24px',
+          boxShadow: '0 -10px 40px rgba(0,0,0,0.08)',
+          zIndex: 40,
+          animation: 'slideUp 0.3s ease-out'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: 800 }}>룸 꾸미기 ✨</h3>
+            <button 
+              onClick={handleCloseDecorShop}
+              style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--text-sub)' }}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '12px', scrollbarWidth: 'none' }}>
+            {['all', 'floor', 'lighting', 'plant', 'petFurniture', 'wall'].map((cat) => (
+              <button 
+                key={cat}
+                onClick={() => setDecorCategory(cat as any)}
+                style={{
+                  background: decorCategory === cat ? 'var(--text-main)' : '#f1f5f9',
+                  color: decorCategory === cat ? '#fff' : 'var(--text-sub)',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer'
+                }}
+              >
+                {cat === 'all' ? '전체' : cat === 'floor' ? '바닥' : cat === 'lighting' ? '조명' : cat === 'plant' ? '식물' : cat === 'petFurniture' ? '펫 가구' : '벽 꾸미기'}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+            {decorItemsList.filter(item => decorCategory === 'all' || item.category === decorCategory).map(item => {
+              const isOwned = ownedDecorItems.includes(item.id);
+              const isEquipped = previewDecorItems[item.category] === item.id;
+              
+              return (
+                <div 
+                  key={item.id}
+                  onClick={() => handlePreviewDecor(item)}
+                  style={{
+                    background: isEquipped ? '#eff6ff' : '#ffffff',
+                    border: isEquipped ? '2px solid var(--accent-blue)' : '2px solid #f1f5f9',
+                    borderRadius: '16px',
+                    padding: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    position: 'relative',
+                    boxShadow: isEquipped ? '0 4px 12px rgba(59, 130, 246, 0.15)' : 'none'
+                  }}
+                >
+                  <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '8px' }}>{item.emoji}</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)', textAlign: 'center' }}>{item.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', textAlign: 'center', marginTop: '4px' }}>
+                    {isOwned ? '보유중' : item.price > 0 ? `🍓 ${item.price}` : `🔒 ${item.unlockCondition}`}
+                  </div>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePurchaseOrEquipDecor(item);
+                    }}
+                    style={{
+                      width: '100%',
+                      marginTop: '10px',
+                      padding: '8px 0',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: isEquipped ? 'var(--text-main)' : isOwned ? 'var(--accent-blue)' : '#f1f5f9',
+                      color: isEquipped || isOwned ? '#fff' : 'var(--text-main)',
+                      fontWeight: 700,
+                      fontSize: '0.75rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {isEquipped ? '해제' : isOwned ? '장착하기' : item.price > 0 ? '구매하기' : '조건 달성 시 획득'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
         {/* 3D Canvas element centered */}
         <div style={{ width: '100%', height: '100%', cursor: 'pointer' }} onClick={handlePatPet}>
           <Canvas 
@@ -435,7 +763,7 @@ export default function PetHouse() {
             />
 
             {/* Dynamic Room Lights */}
-            <DynamicLights mood={activeMood} />
+            <DynamicLights mood={activeMood} equippedItems={previewDecorItems} />
 
             {/* Float ambient sparkle particles */}
             <AmbientParticles />
@@ -449,14 +777,19 @@ export default function PetHouse() {
               trust={trust}
             />
 
+            {/* Dynamic Modular Room Decorations */}
+            <DecorRenderer equippedItems={previewDecorItems} />
+
             {/* Main Pet model with tracking props */}
             <PetRenderer 
               mood={activeMood} 
-              petType={petType === 'cat' ? 'cat' : 'dog'} 
+              petId={petId}
+              petType={petType} 
               toyPosition={toyPosition} 
               showToy={showToy} 
               isInteracting={isInteracting}
               interactionType={interactionType}
+              equippedItems={previewDecorItems}
             />
 
             <OrbitControls 

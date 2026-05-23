@@ -4,6 +4,7 @@ import * as THREE from "three";
 
 interface SharedProps {
   mood?: string;
+  equippedItems?: Record<string, string>;
 }
 
 export function AmbientParticles() {
@@ -110,7 +111,7 @@ export function PetShadow({ mood = "idle" }: SharedProps) {
   );
 }
 
-export function DynamicLights({ mood = "idle" }: SharedProps) {
+export function DynamicLights({ mood = "idle", equippedItems = {} }: SharedProps) {
   let ambientIntensity = 1.6;
   let dirIntensity = 1.8;
   let lightColor = "#fff7ed"; // warm cream
@@ -123,6 +124,16 @@ export function DynamicLights({ mood = "idle" }: SharedProps) {
     ambientIntensity = 2.0;
     dirIntensity = 2.4;
     lightColor = "#fffbeb"; // bright amber/sunlight
+  }
+
+  // Override / adjust based on lighting decor
+  if (equippedItems['lighting'] === 'sunset-lamp') {
+    lightColor = "#fdba74"; // orange sunset tint
+    ambientIntensity = Math.max(ambientIntensity, 1.4) * 1.2;
+    dirIntensity *= 1.1;
+  } else if (equippedItems['lighting'] === 'warm-stand') {
+    lightColor = "#fef08a"; // warm yellow tint
+    ambientIntensity = Math.max(ambientIntensity, 1.2) * 1.1;
   }
 
   return (
